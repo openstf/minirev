@@ -14,6 +14,10 @@ ndk-build
 
 You should now have the binaries available in `./libs`.
 
+## Usage
+
+One process can only handle a single reverse forwarded port. In order to have multiple ports open, multiple instances of the program must be launched, each handling one port.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -1,0 +1,3 @@
+[submodule "uthash"]
+	path = jni/vendor/uthash/source
+	url = https://github.com/troydhanson/uthash
