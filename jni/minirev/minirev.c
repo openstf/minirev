@@ -161,6 +161,12 @@ delete_sources(event_source_t** sources, event_source_type_t type, int port)
   }
 }
 
+static void send_fin(int fromfd, int tofd)
+{
+  char buf[4] = {(fromfd >> 8), fromfd, 0, 0};
+  pump(tofd, buf, HEADER_SIZE);
+}
+
 static void
 delete_source(event_source_t** sources, event_source_t* source)
 {
@@ -177,11 +183,28 @@ delete_source(event_source_t** sources, event_source_t* source)
   case FORWARD_SERVER:
     delete_sources(sources, FORWARD_CONNECTION, source->port);
     break;
+  case FORWARD_CONNECTION:
+    D("%6d fin\n", source->fd);
+    send_fin(source->fd, source->target);
+    break;
   }
 
   HASH_DEL(*sources, source);
   close(source->fd);
   free(source);
+}
+
+static void
+delete_source_by_fd(event_source_t** sources, int fd)
+{
+  event_source_t* source;
+
+  HASH_FIND_INT(*sources, &fd, source);
+
+  if (source == NULL)
+    return;
+
+  delete_source(sources, source);
 }
 
 static int
@@ -365,6 +388,11 @@ handle_control_read(event_source_t** sources, event_source_t* source, int efd)
           fprintf(stderr, "Forwarding port %d\n", source->port);
 
           source->mplength = -HEADER_SIZE;
+        }
+        else if (source->mplength == 0)
+        {
+          // The connection ended.
+          delete_source_by_fd(sources, source->target);
         }
       }
       // Do we have a full data packet?
