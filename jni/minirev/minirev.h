@@ -6,13 +6,14 @@
 #define VERSION 1
 #define DEFAULT_SOCKET_NAME "minirev"
 #define DEFAULT_MAX_EVENTS 64
-#define MAX_PACKET_SIZE 4096
+#define MAX_PACKET_SIZE 0xFFFF
 #define HEADER_SIZE 4
 
 #define LIKELY(x)       __builtin_expect((x),1)
 #define UNLIKELY(x)     __builtin_expect((x),0)
 
-#define D(...)          fprintf(stderr, __VA_ARGS__)
+//#define D(...)          fprintf(stderr, __VA_ARGS__)
+#define D(...)
 
 typedef enum {
   CONTROL_SERVER      = 1,

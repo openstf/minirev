@@ -156,6 +156,7 @@ delete_sources(event_source_t** sources, event_source_type_t type, int port)
   {
     if (cursor->type == type && cursor->port == port)
     {
+      D("%6d delete_reason_7\n", cursor->fd);
       delete_source(sources, cursor);
     }
   }
@@ -163,7 +164,7 @@ delete_sources(event_source_t** sources, event_source_type_t type, int port)
 
 static void send_fin(int fromfd, int tofd)
 {
-  char buf[4] = {(fromfd >> 8), fromfd, 0, 0};
+  char buf[4] = {fromfd, fromfd >> 8, 0, 0};
   pump(tofd, buf, HEADER_SIZE);
 }
 
@@ -197,6 +198,8 @@ delete_source(event_source_t** sources, event_source_t* source)
 static void
 delete_source_by_fd(event_source_t** sources, int fd)
 {
+  D("%6d delete_by_fd\n", fd);
+
   event_source_t* source;
 
   HASH_FIND_INT(*sources, &fd, source);
@@ -205,6 +208,16 @@ delete_source_by_fd(event_source_t** sources, int fd)
     return;
 
   delete_source(sources, source);
+}
+
+static int
+forward_connection_exists(event_source_t** sources, int fd)
+{
+  event_source_t* source;
+
+  HASH_FIND_INT(*sources, &fd, source);
+
+  return source != NULL && source->type == FORWARD_CONNECTION;
 }
 
 static int
@@ -322,6 +335,7 @@ handle_control_read(event_source_t** sources, event_source_t* source, int efd)
       if (errno != EAGAIN)
       {
         perror("read");
+        D("%6d delete_reason_6\n", source->fd);
         delete_source(sources, source);
         return count;
       }
@@ -333,6 +347,7 @@ handle_control_read(event_source_t** sources, event_source_t* source, int efd)
     {
       // End of file. The remote has closed the connection.
       // @todo Make sure we leave no clients behind.
+      D("%6d delete_reason_5\n", source->fd);
       delete_source(sources, source);
       break;
     }
@@ -376,6 +391,7 @@ handle_control_read(event_source_t** sources, event_source_t* source, int efd)
 
           if (ffd < 0)
           {
+            D("%6d delete_reason_4\n", source->fd);
             delete_source(sources, source);
             return -1;
           }
@@ -392,7 +408,9 @@ handle_control_read(event_source_t** sources, event_source_t* source, int efd)
         else if (source->mplength == 0)
         {
           // The connection ended.
+          D("%6d delete_reason_3\n", source->target);
           delete_source_by_fd(sources, source->target);
+          source->mplength = -HEADER_SIZE;
         }
       }
       // Do we have a full data packet?
@@ -401,10 +419,14 @@ handle_control_read(event_source_t** sources, event_source_t* source, int efd)
         D("%6d full packet %d %d\n", source->fd, source->target, source->mplength);
 
         // We may have more bytes than we need.
-        if (pump(source->target, buf + cursor, source->mplength) < 0)
+        if (forward_connection_exists(sources, source->target))
         {
-          delete_source(sources, source);
-          return -1;
+          if (pump(source->target, buf + cursor, source->mplength) < 0)
+          {
+            D("%6d delete_reason_1\n", source->fd);
+            delete_source(sources, source);
+            return -1;
+          }
         }
 
         cursor += source->mplength;
@@ -416,10 +438,14 @@ handle_control_read(event_source_t** sources, event_source_t* source, int efd)
         D("%6d partial packet %d %d\n", source->fd, source->target, source->mplength);
 
         // We have read less bytes than we need, just pump everything.
-        if (pump(source->target, buf + cursor, count - cursor) < 0)
+        if (forward_connection_exists(sources, source->target))
         {
-          delete_source(sources, source);
-          return -1;
+          if (pump(source->target, buf + cursor, count - cursor) < 0)
+          {
+            D("%6d delete_reason_2\n", source->fd);
+            delete_source(sources, source);
+            return -1;
+          }
         }
 
         source->mplength -= count - cursor;
@@ -503,6 +529,7 @@ handle_forward_read(event_source_t** sources, event_source_t* source)
       if (errno != EAGAIN)
       {
         perror("read");
+        D("%6d delete_reason_8\n", source->fd);
         delete_source(sources, source);
         return count;
       }
@@ -513,15 +540,16 @@ handle_forward_read(event_source_t** sources, event_source_t* source)
     if (count == 0)
     {
       // End of file. The remote has closed the connection.
+      D("%6d delete_reason_9\n", source->fd);
       delete_source(sources, source);
       break;
     }
 
     // Header
-    buf[0] = (source->fd >> 8);
-    buf[1] = (source->fd);
-    buf[2] = (count >> 8);
-    buf[3] = (count);
+    buf[0] = source->fd;
+    buf[1] = source->fd >> 8;
+    buf[2] = count;
+    buf[3] = count >> 8;
 
     D("%6d pump %d to %d\n", source->fd, HEADER_SIZE + count, source->target);
 
@@ -632,8 +660,17 @@ main(int argc, char* argv[])
       if (UNLIKELY(events[i].events & EPOLLERR))
       {
         // An error occured on this fd.
-	      fprintf(stderr, "epoll error\n");
-	      delete_source(&sources, source);
+        int error;
+        socklen_t errlen = sizeof(error);
+        if (getsockopt(source->fd, SOL_SOCKET, SO_ERROR, (void*) &error, &errlen) == 0)
+        {
+          D("%6d epoll_error: %s\n", source->fd, strerror(error));
+          delete_source(&sources, source);
+        }
+        else {
+          D("%6d unknown_epoll_error\n", source->fd);
+          delete_source(&sources, source);
+        }
         continue;
       }
 
@@ -641,6 +678,7 @@ main(int argc, char* argv[])
       {
         // Unexpected close of socket, can happen on Ctrl+C. Treat
         // as a normal case.
+        D("%6d delete_reason_10\n", source->fd);
         delete_source(&sources, source);
         continue;
       }
@@ -650,6 +688,7 @@ main(int argc, char* argv[])
         // The socket is not ready for reading, but we're not
         // listening for anything else. How did we get notified?
         // Assume some kind of an error.
+        D("%6d delete_reason_11\n", source->fd);
         delete_source(&sources, source);
         continue;
       }
