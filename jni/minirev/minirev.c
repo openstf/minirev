@@ -591,6 +591,8 @@ main(int argc, char* argv[])
     }
   }
 
+  fprintf(stderr, "PID: %d\n", getpid());
+
   socklen_t client_addr_length = sizeof(client_addr);
 
   sfd = start_abstract_server(sockname);
