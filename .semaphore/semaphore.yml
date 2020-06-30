@@ -17,5 +17,7 @@ blocks:
             - yes | sdkmanager "ndk;21.3.6528147"
             - 'export PATH=$PATH:~/android-sdk/ndk/21.3.6528147/'
             - checkout
+            - git submodule init
+            - git submodule update
             - sem-version java 1.8
             - ndk-build
