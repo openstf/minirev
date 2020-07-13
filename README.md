@@ -1,5 +1,9 @@
 # minirev
 
+# Warning
+
+This repository was superseded by https://github.com/DeviceFarmer/minirev
+
 Minirev is a minimal reverse port forwarding implementation for Android. It works without root when run via [ADB](http://developer.android.com/tools/help/adb.html) and should work on pretty much any SDK level.
 
 ## Building
