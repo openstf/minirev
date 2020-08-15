@@ -1,8 +1,10 @@
-# minirev
-
 # Warning
 
-This repository was superseded by https://github.com/DeviceFarmer/minirev
+# This project along with other ones in [OpenSTF](https://github.com/openstf) organisation is provided as is for community, without active development.
+# You can check any other forks that may be actively developed and offer new/different features [here](https://github.com/openstf/stf/network).
+# Active development has been moved to [DeviceFarmer](https://github.com/DeviceFarmer) organisation.
+
+# minirev
 
 Minirev is a minimal reverse port forwarding implementation for Android. It works without root when run via [ADB](http://developer.android.com/tools/help/adb.html) and should work on pretty much any SDK level.
 
