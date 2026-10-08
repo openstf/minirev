@@ -8,6 +8,7 @@
 #include <string.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
+#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
@@ -520,7 +521,7 @@ handle_forward_read(event_source_t** sources, event_source_t* source)
 
   for (;;)
   {
-    count = read(source->fd, buf + HEADER_SIZE, sizeof(buf));
+    count = read(source->fd, buf + HEADER_SIZE, sizeof(buf) - HEADER_SIZE);
 
     if (count < 0)
     {
